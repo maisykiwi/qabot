@@ -1,0 +1,31 @@
+version: "3"
+
+services:
+  api:
+    build: ./api
+    ports:
+      - "8123:8123"
+    depends_on:
+      - db
+    environment:
+      - DATABASE_HOST=db
+      - DATABASE_USER=root
+      - DATABASE_PASS=rootpassword
+      - DATABASE_DB=qatest
+      - DATABASE_PORT=3306
+    volumes:
+      - ./api/src:/api/src
+      - api_node_modules:/api/node_modules
+    links:
+      - db
+    command: sh -c './wait-for db:3306 -- npm start'
+  db:
+    build: ./mysql
+    ports:
+      - "3308:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=qatest
+volumes:
+  client_node_modules:
+  api_node_modules:
