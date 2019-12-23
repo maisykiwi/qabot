@@ -57,6 +57,10 @@ bot.on("message", data => {
     return;
   }
 
+  if (!data.text.startsWith("<@UNJH3RSER>")) {
+    return;
+  }
+
   let cleaned = data.text.split(" ");
   if (cleaned.length < 2) {
     return;
@@ -73,6 +77,7 @@ bot.on("message", data => {
 
   switch (action.toLowerCase()) {
     case "help":
+      helpMenu(data.channel, reply_ts);
       break;
     case "run":
       let name = cleaned.slice(1);
@@ -89,15 +94,28 @@ bot.on("message", data => {
   }
 });
 
-function helpMenu(name, channel, reply_ts) {
-  console.log("show help menu");
-}
-
-const runProject = async (name, channel, reply_ts) => {
-  const map = await lib.getProjectMap();
+function helpMenu(channel, reply_ts) {
+  const menu = [];
+  menu.push("1. To see all available project names, use `@utbot projects`");
+  menu.push("2. To run tests for a project, use `@utbot run <project_name>`, project name is the name you got in step 1. An example would be like: `@utbot run ClickFunnels Staging`");
+  menu.push("");
+  menu.push("When tests finish running, result will be send as a reply thread to your message");
   const params = {
     thread_ts: reply_ts
   };
+  bot.postMessage(channel, menu.join("\n"), params);
+  return;
+}
+
+const runProject = async (name, channel, reply_ts) => {
+  const params = {
+    thread_ts: reply_ts
+  };
+  if (!name) {
+    bot.postMessage(channel, "Please give me a project name, use `@utbot projects` to get all available projects", params);
+    return;
+  }
+  const map = await lib.getProjectMap();
   if (map.has(name)) {
     const project_id = map.get(name);
     try {
@@ -106,14 +124,16 @@ const runProject = async (name, channel, reply_ts) => {
 
       bot.postMessage(
         channel,
-        `Started project ${name} \nbatch id: ${resp}`,
+        `Started: ${name} \nbatch id: ${resp}`,
         params
       );
     } catch (e) {
       bot.postMessage(channel, `Error: ${e}`, params);
+      return;
     }
   } else {
-    bot.postMessage(channel, "Invalid project name", params);
+    bot.postMessage(channel, "Invalid project name, use `@utbot projects` to get all available projects", params);
+    return;
   }
 };
 
