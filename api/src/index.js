@@ -2,7 +2,7 @@ const SlackBot = require("slackbots");
 const config = require("./config");
 const lib = require("./usetrace_lib");
 const cron = require("node-cron");
-const checkTestStatus = require("./cron-job");
+const jobs = require("./cron-job");
 const mysql = require("mysql");
 const query = require("./database");
 
@@ -28,7 +28,8 @@ const bot = new SlackBot({
 });
 
 cron.schedule("10 * * * * *", function () {
-  checkTestStatus(bot, db);
+  jobs.checkTestStatus(bot, db);
+  jobs.checkRerunStatus(bot, db);
 });
 
 bot.on("start", () => {
@@ -84,6 +85,11 @@ bot.on("message", data => {
       name = name.join(" ").trim();
       runProject(name, data.channel, reply_ts);
       break;
+    case "rerun":
+      let rerun_name = cleaned.slice(1);
+      rerun_name = rerun_name.join(" ").trim();
+      rerunFailure(rerun_name, data.channel, reply_ts);
+      break;
     case "project":
     case "projects":
       getAllProjects(data.channel, reply_ts);
@@ -97,13 +103,17 @@ bot.on("message", data => {
 function helpMenu(channel, reply_ts) {
   const menu = [];
   menu.push("1. To see all available project names, use `@utbot projects`");
-  menu.push("2. To run tests for a project, use `@utbot run <project_name>`, project name is the name you got in step 1. An example would be like: `@utbot run ClickFunnels Staging`");
+  menu.push(
+    "2. To run tests for a project, use `@utbot run <project_name>`, project name is the name you got in step 1. An example would be like: `@utbot run ClickFunnels Staging`"
+  );
   menu.push("");
-  menu.push("When tests finish running, result will be send as a reply thread to your message");
+  menu.push(
+    "When tests finish running, result will be send as a reply thread to your message"
+  );
   const params = {
     thread_ts: reply_ts
   };
-  bot.postMessage(channel, menu.join("\n"), params);
+  bot.postMessage(channel, menu.join("\n\n"), params);
   return;
 }
 
@@ -112,28 +122,78 @@ const runProject = async (name, channel, reply_ts) => {
     thread_ts: reply_ts
   };
   if (!name) {
-    bot.postMessage(channel, "Please give me a project name, use `@utbot projects` to get all available projects", params);
+    bot.postMessage(
+      channel,
+      "Please give me a project name, use `@utbot projects` to get all available projects",
+      params
+    );
     return;
   }
-  const map = await lib.getProjectMap();
-  if (map.has(name)) {
-    const project_id = map.get(name);
-    try {
+
+  try {
+    const map = await lib.getProjectMap();
+    if (map.has(name)) {
+      const project_id = map.get(name);
+
       const resp = await lib.runProjectById(project_id);
       await query.insertJob(resp, project_id, name, channel, reply_ts);
-
+      bot.postMessage(channel, `Started: ${name} \nbatch id: ${resp}`, params);
+      await lib.deleteAllRerunRecordByProject(name);
+      return;
+    } else {
       bot.postMessage(
         channel,
-        `Started: ${name} \nbatch id: ${resp}`,
+        "Invalid project name, use `@utbot projects` to get all available projects",
         params
       );
-    } catch (e) {
-      bot.postMessage(channel, `Error: ${e}`, params);
       return;
     }
-  } else {
-    bot.postMessage(channel, "Invalid project name, use `@utbot projects` to get all available projects", params);
+  } catch (e) {
+    console.log("Error: ", e);
+    bot.postMessage(channel, `Error: ${e}`, params);
+  }
+};
+
+const rerunFailure = async (name, channel, reply_ts) => {
+  const params = {
+    thread_ts: reply_ts
+  };
+  if (!name) {
+    bot.postMessage(
+      channel,
+      "Please give me a project name, use `@utbot projects` to get all available projects",
+      params
+    );
     return;
+  }
+
+  try {
+    // check if rerun database has project name
+    let check = await lib.checkRerunHasProjectName(name);
+    if (check) {
+      // project name exist
+      // insert channel and reply thread
+      const resp = await lib.rerunFailedTraces(name, channel, reply_ts);
+      bot.postMessage(
+        channel,
+        `Reruning ${resp.length} failure trace${
+          resp.length > 1 ? "s" : ""
+        }: \n ${resp.join("\n")}`,
+        params
+      );
+    } else {
+      bot.postMessage(
+        channel,
+        "No failure record for project " +
+        name +
+        ", use `@utbot run " +
+        name +
+        "` to run all traces again",
+        params
+      );
+    }
+  } catch (e) {
+    console.log("Error: ", e);
   }
 };
 
@@ -145,9 +205,13 @@ function invalidAction(channel, reply_ts) {
 }
 
 const getAllProjects = async (channel, reply_ts) => {
-  const msg = await lib.getProjectNames();
-  const params = {
-    thread_ts: reply_ts
-  };
-  bot.postMessage(channel, msg, params);
+  try {
+    const msg = await lib.getProjectNames();
+    const params = {
+      thread_ts: reply_ts
+    };
+    bot.postMessage(channel, msg, params);
+  } catch (e) {
+    console.log("Error: ", e);
+  }
 };
