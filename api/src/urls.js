@@ -6,7 +6,10 @@ const checkResultReady = (batch_id) => `https://api.usetrace.com/api/results/${b
 
 const postTrace = (traceId) => `https://api.usetrace.com/api/trace/${traceId}/execute`;
 
+const flushProject = (projectId) => `https://api.usetrace.com/api/queue/${projectId}/flush`;
+
 exports.inits = inits;
 exports.postProject = postProject;
 exports.checkResultReady = checkResultReady;
 exports.postTrace = postTrace;
+exports.flushProject = flushProject;

@@ -38,6 +38,48 @@ const getProjectMap = () => {
     });
 };
 
+const getTagsMap = () => {
+    return new Promise(function (resolve, reject) {
+        const url = api.inits();
+        axios
+            .get(url, {
+                headers: {
+                    "Sec-Fetch-Mode": "cors",
+                    "Sec-Fetch-Site": "same-origin",
+                    "Accept-Encoding": "gzip, deflate, br",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "User-Agent": config.USER_AGENT,
+                    Accept: "application/json, text/javascript, */*; q=0.01",
+                    Referer: "https://team.usetrace.com/",
+                    "X-Requested-With": "XMLHttpRequest",
+                    Connection: "keep-alive",
+                    Cookie: config.COOKIES
+                }
+            })
+            .then(function (response) {
+                if (response && response.data && response.data.scripts) {
+                    const traces = response.data.scripts;
+                    const map = new Map();
+                    for (let item of traces) {
+                        if (map.has(item.projectId)) {
+                            const existingTags = Array.from(map.get(item.projectId));
+                            const newTags = new Set([...item.tags, ...existingTags]);
+                            map.set(item.projectId, newTags);
+                        } else {
+                            const tags = new Set([...item.tags])
+                            map.set(item.projectId, tags);
+                        }
+                    }
+                    resolve(map);
+                }
+            })
+            .catch(function (error) {
+                console.error("Error in getTagsMap: ", error);
+                reject(error);
+            });
+    });
+}
+
 const getProjectNames = async () => {
     try {
         const nameMap = await getProjectMap();
@@ -49,7 +91,7 @@ const getProjectNames = async () => {
     }
 };
 
-const runProjectById = async id => {
+const runProjectById = async (id, tags = []) => {
     const url = api.postProject(id);
     const headers = {
         "Content-type": "application/json"
@@ -59,6 +101,10 @@ const runProjectById = async id => {
             browserName: "chrome"
         }]
     };
+
+    if (tags && tags.length > 0) {
+        payload.tags = tags;
+    }
 
     const options = {
         method: "POST",
@@ -341,6 +387,51 @@ const rerunFailedTraces = async (projectName, channel, reply_ts) => {
     });
 };
 
+const setInvidualJobToFinished = (id) => {
+    return new Promise(function (resolve, reject) {
+        const statement = `UPDATE usetrace_jobs set finished = "1" where id="${id}";`
+        db.query(statement, function (err, result) {
+            if (err) {
+                reject("Error: ", err);
+            } else {
+                resolve("done")
+            }
+        })
+    })
+}
+
+const flushProjectById = async (projectId) => {
+    return new Promise(function (resolve, reject) {
+        // update usetrace_job to finished for this projectId;
+        const statement = `SELECT * from usetrace_jobs where project_id = "${projectId}" and finished = "0";`;
+
+        db.query(statement, function (err, result) {
+            if (err) {
+                reject("Error: ", err);
+            } else {
+                if (result && result.length > 0) {
+                    const promiseArr = [];
+                    for (let item of result) {
+                        promiseArr.push(setInvidualJobToFinished(item.id));
+                    }
+                    Promise.all(promiseArr).then(() => {
+                        axios.post(api.flushProject(projectId))
+                            .then(function (response) {
+                                console.log(response);
+                                resolve("Done flushing project");
+                            })
+                            .catch(function (error) {
+                                reject("Error: ", error);
+                            });
+                    }).catch((e) => reject("Error: ", e))
+                } else {
+                    resolve("No running job for this project");
+                }
+            }
+        });
+    })
+}
+
 exports.getProjectMap = getProjectMap;
 exports.getProjectNames = getProjectNames;
 exports.runProjectById = runProjectById;
@@ -350,3 +441,5 @@ exports.getFailedBrowserSessions = getFailedBrowserSessions;
 exports.checkRerunHasProjectName = checkRerunHasProjectName;
 exports.rerunFailedTraces = rerunFailedTraces;
 exports.deleteAllRerunRecordByProject = deleteAllRerunRecordByProject;
+exports.getTagsMap = getTagsMap;
+exports.flushProjectById = flushProjectById;

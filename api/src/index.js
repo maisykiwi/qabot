@@ -24,13 +24,20 @@ global.db = db;
 
 const bot = new SlackBot({
   token: config.TOKEN,
-  name: "utbot"
+  name: config.BOT_NAME
 });
 
-cron.schedule("10 * * * * *", function () {
-  jobs.checkTestStatus(bot, db);
-  jobs.checkRerunStatus(bot, db);
+cron.schedule("0 */13 * * * *", function () {
+  jobs.pingToAlive(bot);
 });
+
+cron.schedule("45 * * * * *", function () {
+  jobs.checkTestStatus(bot, db);
+});
+
+/* cron.schedule("35 * * * * *", function () {
+  jobs.checkRerunStatus(bot, db);
+}); */
 
 bot.on("start", () => {
   console.log("utbot started!");
@@ -58,7 +65,7 @@ bot.on("message", data => {
     return;
   }
 
-  if (!data.text.startsWith("<@UNJH3RSER>")) {
+  if (!data.text.startsWith(config.BOT_CODE)) {
     return;
   }
 
@@ -81,9 +88,28 @@ bot.on("message", data => {
       helpMenu(data.channel, reply_ts);
       break;
     case "run":
-      let name = cleaned.slice(1);
-      name = name.join(" ").trim();
-      runProject(name, data.channel, reply_ts);
+      if (cleaned.includes("tag:") || cleaned.includes("tags:")) {
+        const tagIndex = cleaned.includes("tag:") ? cleaned.indexOf("tag:") : cleaned.indexOf("tags:");
+        const tagDivider = cleaned.includes("tag:") ? "tag:" : "tags:";
+        if (cleaned.length - 1 === tagIndex) {
+          // assume tag is empty
+          let pName = cleaned.slice(1);
+          pName = pName.join(" ").trim();
+          runProject(pName, data.channel, reply_ts);
+        } else {
+          const nameForProject = cleaned.slice(1, tagIndex);
+          const tagSection = data.text.split(tagDivider);
+          console.log("=== tagSection: ", tagSection);
+          let tagsEntered = tagSection[1].split(",");
+          tagsEntered = tagsEntered.map(item => item.trim())
+          console.log(" ====> tagsEntered: ", tagsEntered);
+          runProject(nameForProject.join(" ").trim(), data.channel, reply_ts, tagsEntered);
+        }
+      } else {
+        let name = cleaned.slice(1);
+        name = name.join(" ").trim();
+        runProject(name, data.channel, reply_ts);
+      }
       break;
     case "rerun":
       let rerun_name = cleaned.slice(1);
@@ -92,7 +118,18 @@ bot.on("message", data => {
       break;
     case "project":
     case "projects":
-      getAllProjects(data.channel, reply_ts);
+      if (cleaned.includes("tag") || cleaned.includes("tags")) {
+        let projectName = cleaned.slice(1, cleaned.length - 1);
+        console.log("==== projectName: ", projectName);
+        getTagsByProjectName(projectName.join(" ").trim(), data.channel, reply_ts);
+      } else {
+        getAllProjects(data.channel, reply_ts);
+      }
+      break;
+    case "flush":
+      let flush_project_name = cleaned.slice(1);
+      flush_project_name = flush_project_name.join(" ").trim();
+      flushProject(flush_project_name, data.channel, reply_ts);
       break;
     default:
       invalidAction(data.channel, reply_ts);
@@ -117,7 +154,7 @@ function helpMenu(channel, reply_ts) {
   return;
 }
 
-const runProject = async (name, channel, reply_ts) => {
+const runProject = async (name, channel, reply_ts, tags = []) => {
   const params = {
     thread_ts: reply_ts
   };
@@ -135,15 +172,20 @@ const runProject = async (name, channel, reply_ts) => {
     if (map.has(name)) {
       const project_id = map.get(name);
 
-      const resp = await lib.runProjectById(project_id);
+      const resp = await lib.runProjectById(project_id, tags);
       await query.insertJob(resp, project_id, name, channel, reply_ts);
-      bot.postMessage(channel, `Started: ${name} \nbatch id: ${resp}`, params);
+      if (tags && tags.length > 0) {
+        bot.postMessage(channel, `Started: ${name} \nTags: ${tags}\nbatch id: ${resp}`, params);
+      } else {
+        bot.postMessage(channel, `Started: ${name} \nbatch id: ${resp}`, params);
+      }
+
       await lib.deleteAllRerunRecordByProject(name);
       return;
     } else {
       bot.postMessage(
         channel,
-        "Invalid project name, use `@utbot projects` to get all available projects",
+        "Invalid project name: " + name + ", use `@utbot projects` to get all available projects",
         params
       );
       return;
@@ -197,6 +239,40 @@ const rerunFailure = async (name, channel, reply_ts) => {
   }
 };
 
+const flushProject = async (name, channel, reply_ts) => {
+  const params = {
+    thread_ts: reply_ts
+  };
+  if (!name) {
+    bot.postMessage(
+      channel,
+      "Please give me a project name, use `@utbot projects` to get all available projects",
+      params
+    );
+    return;
+  }
+
+  try {
+    const projectMap = await lib.getProjectMap();
+    if (projectMap.has(name)) {
+      const resp = await lib.flushProjectById(projectMap.get(name));
+      bot.postMessage(
+        channel,
+        resp,
+        params
+      );
+    } else {
+      bot.postMessage(
+        channel,
+        "Invalid project name, use `@utbot projects` to get all available projects",
+        params
+      );
+    }
+  } catch (e) {
+    console.log("Error: ", e);
+  }
+};
+
 function invalidAction(channel, reply_ts) {
   const params = {
     thread_ts: reply_ts
@@ -215,3 +291,57 @@ const getAllProjects = async (channel, reply_ts) => {
     console.log("Error: ", e);
   }
 };
+
+const getTagsByProjectName = async (projectName, channel, reply_ts) => {
+  const params = {
+    thread_ts: reply_ts
+  };
+  try {
+    const tagMap = await lib.getTagsMap();
+    const projectMap = await lib.getProjectMap();
+    if (projectMap.has(projectName)) {
+      const projectId = projectMap.get(projectName);
+      if (tagMap.has(projectId)) {
+        const tags = Array.from(tagMap.get(projectId));
+        if (tags.length > 0) {
+          tags.sort(function (a, b) {
+            if (a > b) {
+              return 1;
+            }
+            if (b > a) {
+              return -1;
+            }
+            return 0;
+          });
+          const resp = [`Available tags for project ${projectName}:\n`, ...tags];
+          bot.postMessage(
+            channel,
+            resp.join("\n"),
+            params
+          );
+
+        } else {
+          bot.postMessage(
+            channel,
+            "No tags for this project yet",
+            params
+          );
+        }
+      } else {
+        bot.postMessage(
+          channel,
+          "Sorry, cannot find tags for this project",
+          params
+        );
+      }
+    } else {
+      bot.postMessage(
+        channel,
+        "Invalid project name, use `@utbot projects` to get all available projects",
+        params
+      );
+    }
+  } catch (e) {
+    console.log("Error getting tags by project name: ", e);
+  }
+}

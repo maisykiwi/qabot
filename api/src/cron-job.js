@@ -3,6 +3,7 @@ const xml2js = require("xml2js");
 const xmlParser = new xml2js.Parser();
 const api = require("./urls");
 const axios = require("axios");
+const config = require("./config");
 
 const checkTestStatus = (bot, db) => {
     const statement = `select * from usetrace_jobs uj where uj.finished = '0'`;
@@ -10,6 +11,7 @@ const checkTestStatus = (bot, db) => {
     db.query(statement, function (e, result) {
         if (result && result.length > 0) {
             for (item of result) {
+                console.log("==== checkTestStatus Item: ", item);
                 lib
                     .checkResultStatus(item.batch_id)
                     .then(function (resp) {
@@ -36,10 +38,11 @@ const checkTestStatus = (bot, db) => {
                                                 batch.failed,
                                                 item.project_name
                                             )
-                                            .then(function (resp) {
-                                                report.push(resp);
+                                            .then(function (resp2) {
+                                                report.push(resp2);
                                                 // send failure report
-                                                db.query(mark_done_statement, function (err, result) {
+                                                db.query(mark_done_statement, function (err, inner_result) {
+                                                    console.log("==== mark done statement result: ", inner_result);
                                                     if (!err) {
                                                         const params = {
                                                             thread_ts: item.reply_thread
@@ -156,7 +159,7 @@ const getFinishedResultCount = projectName => {
     });
 };
 
-const getSingleTraceReport = batchId => {
+const getSingleTraceReport = (batchId, trace_name) => {
     return new Promise(function (resolve, reject) {
         const url = api.checkResultReady(batchId);
         axios
@@ -174,20 +177,28 @@ const getSingleTraceReport = batchId => {
                         console.log("===== parsed result: ");
                         console.log("==== result.testsuite: ", result.testsuite);
                         console.log("==== result.testsuite keys: ", Object.keys(result.testsuite));
-                        console.log("=====result.testsuite.testcase[0]: ", result.testsuite.testcase[0]);
-                        console.log("=== result.testsuite.testcase[0] keys: ", Object.keys(result.testsuite.testcase[0]));
+
                         console.dir(result);
 
-
                         if (result && result.testsuite && result.testsuite.testcase && result.testsuite.testcase.length > 0) {
+                            console.log("=====result.testsuite.testcase[0]: ", result.testsuite.testcase[0]);
+                            console.log("=== result.testsuite.testcase[0] keys: ", Object.keys(result.testsuite.testcase[0]));
                             const finalResult = {
-                                title: result.testsuite.testcase[0]["$"].name,
+                                title: trace_name,
                             }
 
-                            if (result.testsuite["$"].error = "1") {
+                            if (result.testsuite["$"].errors === "1") {
                                 finalResult.error = result.testsuite.testcase[0].error[0]["$"].message
                             }
                             console.log("======>> resolving final result: ", finalResult);
+                            resolve(finalResult);
+                        } else if (result && result.testsuite && result.testsuite["$"] && result.testsuite["$"].name) {
+                            const finalResult = {
+                                title: trace_name,
+                            }
+                            if (result.testsuite["$"].error == "1") {
+                                finalResult.error = "Has error but cannot retrieve more details";
+                            }
                             resolve(finalResult);
                         } else {
                             console.log("=====result not match")
@@ -210,7 +221,7 @@ const getRerunReport = projectName => {
             if (result && result.length > 0) {
                 // use batch id to get reports
                 for (let item of result) {
-                    promiseArr.push(getSingleTraceReport(item.new_batch_id));
+                    promiseArr.push(getSingleTraceReport(item.new_batch_id, item.trace_name));
                 }
 
                 Promise.all(promiseArr)
@@ -288,5 +299,12 @@ const checkRerunStatus = async (bot, db) => {
     });
 };
 
+const pingToAlive = async (bot) => {
+    var params = {
+        icon_emoji: ':success:'
+    };
+    bot.postMessage(config.PING_CHANNEL, "I am alive!", params);
+}
 exports.checkTestStatus = checkTestStatus;
 exports.checkRerunStatus = checkRerunStatus;
+exports.pingToAlive = pingToAlive;
