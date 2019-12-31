@@ -22,7 +22,7 @@ db.connect(err => {
 });
 global.db = db;
 
-const bot = new SlackBot({
+let bot = new SlackBot({
   token: config.TOKEN,
   name: config.BOT_NAME
 });
@@ -44,6 +44,15 @@ bot.on("start", () => {
 });
 
 bot.on("error", err => console.log("Error: ", err));
+
+bot.on("close", () => {
+  console.log(">>> bot connection is closed, restart again");
+  bot = null;
+  bot = new SlackBot({
+    token: config.TOKEN,
+    name: config.BOT_NAME
+  });
+});
 
 bot.on("message", data => {
   if (data.type !== "message") {
@@ -130,6 +139,14 @@ bot.on("message", data => {
       let flush_project_name = cleaned.slice(1);
       flush_project_name = flush_project_name.join(" ").trim();
       flushProject(flush_project_name, data.channel, reply_ts);
+      break;
+    case "wakeup":
+      bot = null;
+      bot = new SlackBot({
+        token: config.TOKEN,
+        name: config.BOT_NAME
+      });
+      awake(data.channel, reply_ts)
       break;
     default:
       invalidAction(data.channel, reply_ts);
@@ -278,6 +295,13 @@ function invalidAction(channel, reply_ts) {
     thread_ts: reply_ts
   };
   bot.postMessage(channel, "invalid action", params);
+}
+
+function awake(channel, reply_ts) {
+  const params = {
+    thread_ts: reply_ts
+  };
+  bot.postMessage(channel, "I am awake!", params);
 }
 
 const getAllProjects = async (channel, reply_ts) => {
