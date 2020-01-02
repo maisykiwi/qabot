@@ -14,6 +14,9 @@ const db = mysql.createConnection({
   port: process.env["DATABASE_PORT"]
 });
 
+let channelMap = null;
+let userMap = null;
+
 db.connect(err => {
   if (err) {
     throw err;
@@ -41,6 +44,13 @@ cron.schedule("45 * * * * *", function () {
 
 bot.on("start", () => {
   console.log("utbot started!");
+  bot.getChannels()
+    .then((data) => channelMap = data.channels)
+    .catch(e => console.log("Error getting channel map: ", e));
+
+  bot.getUsers()
+    .then(data => userMap = data.members)
+    .catch(e => console.log("Error getting users map: ", e));
 });
 
 bot.on("error", err => console.log("Error: ", err));
@@ -55,6 +65,7 @@ bot.on("close", () => {
 });
 
 bot.on("message", data => {
+  console.log("==== data: ", data);
   if (data.type !== "message") {
     return;
   }
@@ -77,6 +88,9 @@ bot.on("message", data => {
   if (!data.text.startsWith(config.BOT_CODE)) {
     return;
   }
+
+  // report usage
+  reportUsage(data);
 
   let cleaned = data.text.split(" ");
   if (cleaned.length < 2) {
@@ -139,14 +153,6 @@ bot.on("message", data => {
       let flush_project_name = cleaned.slice(1);
       flush_project_name = flush_project_name.join(" ").trim();
       flushProject(flush_project_name, data.channel, reply_ts);
-      break;
-    case "wakeup":
-      bot = null;
-      bot = new SlackBot({
-        token: config.TOKEN,
-        name: config.BOT_NAME
-      });
-      awake(data.channel, reply_ts)
       break;
     default:
       invalidAction(data.channel, reply_ts);
@@ -297,13 +303,6 @@ function invalidAction(channel, reply_ts) {
   bot.postMessage(channel, "invalid action", params);
 }
 
-function awake(channel, reply_ts) {
-  const params = {
-    thread_ts: reply_ts
-  };
-  bot.postMessage(channel, "I am awake!", params);
-}
-
 const getAllProjects = async (channel, reply_ts) => {
   try {
     const msg = await lib.getProjectNames();
@@ -369,3 +368,25 @@ const getTagsByProjectName = async (projectName, channel, reply_ts) => {
     console.log("Error getting tags by project name: ", e);
   }
 }
+
+const reportUsage = (data) => {
+  if (!data) {
+    return;
+  }
+  let channelName = "";
+  let userName = "";
+  if (channelMap) {
+    channelObj = channelMap.filter(item => item.id === data.channel);
+    channelName = channelObj[0].name;
+  }
+
+  if (userMap) {
+    userObj = userMap.filter(item => item.id === data.user);
+    userName = userObj[0].name;
+  }
+
+  var params = {
+    icon_emoji: ':cherry_blossom:'
+  };
+  bot.postMessage(config.PING_CHANNEL, `Message: ${data.text}, Channel: ${channelName}, User: ${userName}`, params);
+};
