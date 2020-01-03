@@ -68,10 +68,7 @@ bot.on("message", data => {
   console.log("==== data: ", data);
   if (data.type === "goodbye" && data.source === "gateway_server") {
     console.log("==gateway closing, trying to reconnect");
-    bot = new SlackBot({
-      token: config.TOKEN,
-      name: config.BOT_NAME
-    });
+    bot.connect();
   }
 
   if (data.type !== "message") {
