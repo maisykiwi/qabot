@@ -32,25 +32,26 @@ let bot = new SlackBot({
 
 // cron.schedule("0 */13 * * * *", function () {
 // jobs.pingToAlive(bot);
-// });  
+// });
 
-
-cron.schedule("45 * * * * *", function () {
+cron.schedule("45 * * * * *", function() {
   jobs.checkTestStatus(bot, db);
 });
 
-cron.schedule("35 * * * * *", function () {
+cron.schedule("35 * * * * *", function() {
   jobs.checkRerunStatus(bot, db);
 });
 
 bot.on("start", () => {
   console.log("utbot started!");
-  bot.getChannels()
-    .then((data) => channelMap = data.channels)
+  bot
+    .getChannels()
+    .then(data => (channelMap = data.channels))
     .catch(e => console.log("Error getting channel map: ", e));
 
-  bot.getUsers()
-    .then(data => userMap = data.members)
+  bot
+    .getUsers()
+    .then(data => (userMap = data.members))
     .catch(e => console.log("Error getting users map: ", e));
 });
 
@@ -123,7 +124,9 @@ bot.on("message", data => {
       break;
     case "run":
       if (cleaned.includes("tag:") || cleaned.includes("tags:")) {
-        const tagIndex = cleaned.includes("tag:") ? cleaned.indexOf("tag:") : cleaned.indexOf("tags:");
+        const tagIndex = cleaned.includes("tag:")
+          ? cleaned.indexOf("tag:")
+          : cleaned.indexOf("tags:");
         const tagDivider = cleaned.includes("tag:") ? "tag:" : "tags:";
         if (cleaned.length - 1 === tagIndex) {
           // assume tag is empty
@@ -135,9 +138,14 @@ bot.on("message", data => {
           const tagSection = data.text.split(tagDivider);
           console.log("=== tagSection: ", tagSection);
           let tagsEntered = tagSection[1].split(",");
-          tagsEntered = tagsEntered.map(item => item.trim())
+          tagsEntered = tagsEntered.map(item => item.trim());
           console.log(" ====> tagsEntered: ", tagsEntered);
-          runProject(nameForProject.join(" ").trim(), data.channel, reply_ts, tagsEntered);
+          runProject(
+            nameForProject.join(" ").trim(),
+            data.channel,
+            reply_ts,
+            tagsEntered
+          );
         }
       } else {
         let name = cleaned.slice(1);
@@ -155,7 +163,11 @@ bot.on("message", data => {
       if (cleaned.includes("tag") || cleaned.includes("tags")) {
         let projectName = cleaned.slice(1, cleaned.length - 1);
         console.log("==== projectName: ", projectName);
-        getTagsByProjectName(projectName.join(" ").trim(), data.channel, reply_ts);
+        getTagsByProjectName(
+          projectName.join(" ").trim(),
+          data.channel,
+          reply_ts
+        );
       } else {
         getAllProjects(data.channel, reply_ts);
       }
@@ -176,6 +188,9 @@ function helpMenu(channel, reply_ts) {
   menu.push("1. To see all available project names, use `@utbot projects`");
   menu.push(
     "2. To run tests for a project, use `@utbot run <project_name>`, project name is the name you got in step 1. An example would be like: `@utbot run ClickFunnels Staging`"
+  );
+  menu.push(
+    "3. To rerun failure tests for a project, use `@utbot rerun <project_name>`, project name is the name you got in step 1. An example would be like: `@utbot rerun ClickFunnels Staging`"
   );
   menu.push("");
   menu.push(
@@ -209,9 +224,17 @@ const runProject = async (name, channel, reply_ts, tags = []) => {
       const resp = await lib.runProjectById(project_id, tags);
       await query.insertJob(resp, project_id, name, channel, reply_ts);
       if (tags && tags.length > 0) {
-        bot.postMessage(channel, `Started: ${name} \nTags: ${tags}\nbatch id: ${resp}`, params);
+        bot.postMessage(
+          channel,
+          `Started: ${name} \nTags: ${tags}\nbatch id: ${resp}`,
+          params
+        );
       } else {
-        bot.postMessage(channel, `Started: ${name} \nbatch id: ${resp}`, params);
+        bot.postMessage(
+          channel,
+          `Started: ${name} \nbatch id: ${resp}`,
+          params
+        );
       }
 
       await lib.deleteAllRerunRecordByProject(name);
@@ -219,7 +242,9 @@ const runProject = async (name, channel, reply_ts, tags = []) => {
     } else {
       bot.postMessage(
         channel,
-        "Invalid project name: " + name + ", use `@utbot projects` to get all available projects",
+        "Invalid project name: " +
+          name +
+          ", use `@utbot projects` to get all available projects",
         params
       );
       return;
@@ -261,10 +286,10 @@ const rerunFailure = async (name, channel, reply_ts) => {
       bot.postMessage(
         channel,
         "No failure record for project " +
-        name +
-        ", use `@utbot run " +
-        name +
-        "` to run all traces again",
+          name +
+          ", use `@utbot run " +
+          name +
+          "` to run all traces again",
         params
       );
     }
@@ -290,11 +315,7 @@ const flushProject = async (name, channel, reply_ts) => {
     const projectMap = await lib.getProjectMap();
     if (projectMap.has(name)) {
       const resp = await lib.flushProjectById(projectMap.get(name));
-      bot.postMessage(
-        channel,
-        resp,
-        params
-      );
+      bot.postMessage(channel, resp, params);
     } else {
       bot.postMessage(
         channel,
@@ -338,7 +359,7 @@ const getTagsByProjectName = async (projectName, channel, reply_ts) => {
       if (tagMap.has(projectId)) {
         const tags = Array.from(tagMap.get(projectId));
         if (tags.length > 0) {
-          tags.sort(function (a, b) {
+          tags.sort(function(a, b) {
             if (a > b) {
               return 1;
             }
@@ -347,19 +368,13 @@ const getTagsByProjectName = async (projectName, channel, reply_ts) => {
             }
             return 0;
           });
-          const resp = [`Available tags for project ${projectName}:\n`, ...tags];
-          bot.postMessage(
-            channel,
-            resp.join("\n"),
-            params
-          );
-
+          const resp = [
+            `Available tags for project ${projectName}:\n`,
+            ...tags
+          ];
+          bot.postMessage(channel, resp.join("\n"), params);
         } else {
-          bot.postMessage(
-            channel,
-            "No tags for this project yet",
-            params
-          );
+          bot.postMessage(channel, "No tags for this project yet", params);
         }
       } else {
         bot.postMessage(
@@ -378,9 +393,9 @@ const getTagsByProjectName = async (projectName, channel, reply_ts) => {
   } catch (e) {
     console.log("Error getting tags by project name: ", e);
   }
-}
+};
 
-const reportUsage = (data) => {
+const reportUsage = data => {
   if (!data) {
     return;
   }
@@ -397,7 +412,11 @@ const reportUsage = (data) => {
   }
 
   var params = {
-    icon_emoji: ':cherry_blossom:'
+    icon_emoji: ":cherry_blossom:"
   };
-  bot.postMessage(config.PING_CHANNEL, `Message: ${data.text}, Channel: ${channelName}, User: ${userName}`, params);
+  bot.postMessage(
+    config.PING_CHANNEL,
+    `Message: ${data.text}, Channel: ${channelName}, User: ${userName}`,
+    params
+  );
 };
