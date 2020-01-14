@@ -30,17 +30,18 @@ let bot = new SlackBot({
   name: config.BOT_NAME
 });
 
-cron.schedule("0 */13 * * * *", function () {
-  jobs.pingToAlive(bot);
-});
+// cron.schedule("0 */13 * * * *", function () {
+// jobs.pingToAlive(bot);
+// });  
+
 
 cron.schedule("45 * * * * *", function () {
   jobs.checkTestStatus(bot, db);
 });
 
-/* cron.schedule("35 * * * * *", function () {
+cron.schedule("35 * * * * *", function () {
   jobs.checkRerunStatus(bot, db);
-}); */
+});
 
 bot.on("start", () => {
   console.log("utbot started!");
