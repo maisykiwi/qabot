@@ -34,11 +34,11 @@ let bot = new SlackBot({
 // jobs.pingToAlive(bot);
 // });
 
-cron.schedule("45 * * * * *", function() {
+cron.schedule("45 * * * * *", function () {
   jobs.checkTestStatus(bot, db);
 });
 
-cron.schedule("35 * * * * *", function() {
+cron.schedule("35 * * * * *", function () {
   jobs.checkRerunStatus(bot, db);
 });
 
@@ -68,7 +68,6 @@ bot.on("close", () => {
 });
 
 bot.on("message", data => {
-  console.log("==== data: ", data);
   if (data.type === "goodbye" && data.source === "gateway_server") {
     console.log("==gateway closing, trying to reconnect");
     bot = new SlackBot({
@@ -124,14 +123,14 @@ bot.on("message", data => {
       break;
     case "run":
       if (cleaned.includes("tag:") || cleaned.includes("tags:")) {
-        const tagIndex = cleaned.includes("tag:")
-          ? cleaned.indexOf("tag:")
-          : cleaned.indexOf("tags:");
+        const tagIndex = cleaned.includes("tag:") ?
+          cleaned.indexOf("tag:") :
+          cleaned.indexOf("tags:");
         const tagDivider = cleaned.includes("tag:") ? "tag:" : "tags:";
         if (cleaned.length - 1 === tagIndex) {
           // assume tag is empty
           let pName = cleaned.slice(1);
-          pName = pName.join(" ").trim();
+          pName = pName.join(" ").trim().toLowerCase();
           runProject(pName, data.channel, reply_ts);
         } else {
           const nameForProject = cleaned.slice(1, tagIndex);
@@ -141,7 +140,7 @@ bot.on("message", data => {
           tagsEntered = tagsEntered.map(item => item.trim());
           console.log(" ====> tagsEntered: ", tagsEntered);
           runProject(
-            nameForProject.join(" ").trim(),
+            nameForProject.join(" ").trim().toLowerCase(),
             data.channel,
             reply_ts,
             tagsEntered
@@ -149,22 +148,21 @@ bot.on("message", data => {
         }
       } else {
         let name = cleaned.slice(1);
-        name = name.join(" ").trim();
+        name = name.join(" ").trim().toLowerCase();
         runProject(name, data.channel, reply_ts);
       }
       break;
     case "rerun":
       let rerun_name = cleaned.slice(1);
-      rerun_name = rerun_name.join(" ").trim();
+      rerun_name = rerun_name.join(" ").trim().toLowerCase();
       rerunFailure(rerun_name, data.channel, reply_ts);
       break;
     case "project":
     case "projects":
       if (cleaned.includes("tag") || cleaned.includes("tags")) {
         let projectName = cleaned.slice(1, cleaned.length - 1);
-        console.log("==== projectName: ", projectName);
         getTagsByProjectName(
-          projectName.join(" ").trim(),
+          projectName.join(" ").trim().toLowerCase(),
           data.channel,
           reply_ts
         );
@@ -174,7 +172,7 @@ bot.on("message", data => {
       break;
     case "flush":
       let flush_project_name = cleaned.slice(1);
-      flush_project_name = flush_project_name.join(" ").trim();
+      flush_project_name = flush_project_name.join(" ").trim().toLowerCase();
       flushProject(flush_project_name, data.channel, reply_ts);
       break;
     default:
@@ -190,7 +188,7 @@ function helpMenu(channel, reply_ts) {
     "2. To run tests for a project, use `@utbot run <project_name>`, project name is the name you got in step 1. An example would be like: `@utbot run ClickFunnels Staging`"
   );
   menu.push(
-    "3. To rerun failure tests for a project, use `@utbot rerun <project_name>`, project name is the name you got in step 1. An example would be like: `@utbot rerun ClickFunnels Staging`"
+    "3. To rerun failed tests for a project, use `@utbot rerun <project_name>`, project name is the name you got in step 1. An example would be like: `@utbot rerun ClickFunnels Staging`"
   );
   menu.push("");
   menu.push(
@@ -243,8 +241,8 @@ const runProject = async (name, channel, reply_ts, tags = []) => {
       bot.postMessage(
         channel,
         "Invalid project name: " +
-          name +
-          ", use `@utbot projects` to get all available projects",
+        name +
+        ", use `@utbot projects` to get all available projects",
         params
       );
       return;
@@ -286,10 +284,10 @@ const rerunFailure = async (name, channel, reply_ts) => {
       bot.postMessage(
         channel,
         "No failure record for project " +
-          name +
-          ", use `@utbot run " +
-          name +
-          "` to run all traces again",
+        name +
+        ", use `@utbot run " +
+        name +
+        "` to run all traces again",
         params
       );
     }
@@ -359,7 +357,7 @@ const getTagsByProjectName = async (projectName, channel, reply_ts) => {
       if (tagMap.has(projectId)) {
         const tags = Array.from(tagMap.get(projectId));
         if (tags.length > 0) {
-          tags.sort(function(a, b) {
+          tags.sort(function (a, b) {
             if (a > b) {
               return 1;
             }

@@ -26,7 +26,9 @@ const getProjectMap = () => {
                     const projects = response.data.projects;
                     const map = new Map();
                     for (let item of projects) {
-                        map.set(item.name, item.id);
+                        if (item.name) {
+                            map.set(item.name.toLowerCase(), item.id);
+                        }
                     }
                     resolve(map);
                 }

@@ -230,8 +230,7 @@ const getRerunReport = projectName => {
                         const titleReport = [];
                         const errorReport = [];
                         titleReport.push(`Reran ${reportResults.length} trace${reportResults.length > 1 ? "s":""}`);
-                        errorReport.push("\n");
-                        errorReport.push("Failure Details");
+
                         for (let [index, item] of reportResults.entries()) {
                             const title = item.title.replace("chrome:", "");
                             const hasError = item.hasOwnProperty("error");
@@ -241,6 +240,12 @@ const getRerunReport = projectName => {
                                 errorReport.push(item.error);
                             }
                         }
+
+                        if (errorReport.length > 0) {
+                            titleReport.push("\n");
+                            titleReport.push("Failure Details");
+                        }
+
                         titleReport.push(errorReport.join("\n"));
                         resolve(titleReport.join("\n"));
                     })
