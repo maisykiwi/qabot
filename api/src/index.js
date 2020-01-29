@@ -190,10 +190,20 @@ function helpMenu(channel, reply_ts) {
   menu.push(
     "3. To rerun failed tests for a project, use `@utbot rerun <project_name>`, project name is the name you got in step 1. An example would be like: `@utbot rerun ClickFunnels Staging`"
   );
+  menu.push(
+    "4. To get all available tags for a project, use `@utbot project <project_name> tags`, project name is the name you got in step 1. An example would be like: `@utbot project Staging tags`"
+  );
+  menu.push(
+    "5. To run a project filter by tags, use `@utbot run <project_name> tags: <list of tag names>`, project name is the name you got in step 1, tag names are the names you got in step 4. An example would be like: `@utbot run Staging tags: navbar,smtp`"
+  );
+  menu.push(
+    "6. To flush a project (stop all running tests), use `@utbot flush <project_name>`, project name is the name you got in step 1. An example would be like: `@utbot flush Staging`"
+  );
   menu.push("");
   menu.push(
     "When tests finish running, result will be send as a reply thread to your message"
   );
+  menu.push("Full user guide: https://docs.google.com/document/d/1nep8eiFjC8V_ULez7qnKIREK4OeVEQbJR4hlD7CFVt4/edit?usp=sharing")
   const params = {
     thread_ts: reply_ts
   };
