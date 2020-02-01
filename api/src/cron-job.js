@@ -173,38 +173,13 @@ const getSingleTraceReport = (batchId, trace_name) => {
                 ) {
                     reject("result not ready");
                 } else {
-                    xmlParser.parseString(response.data, function (err, result) {
-                        console.log("===== parsed result: ");
-                        console.log("==== result.testsuite: ", result.testsuite);
-                        console.log("==== result.testsuite keys: ", Object.keys(result.testsuite));
-
-                        console.dir(result);
-
-                        if (result && result.testsuite && result.testsuite.testcase && result.testsuite.testcase.length > 0) {
-                            console.log("=====result.testsuite.testcase[0]: ", result.testsuite.testcase[0]);
-                            console.log("=== result.testsuite.testcase[0] keys: ", Object.keys(result.testsuite.testcase[0]));
-                            const finalResult = {
-                                title: trace_name,
-                            }
-
-                            if (result.testsuite["$"].errors === "1") {
-                                finalResult.error = result.testsuite.testcase[0].error[0]["$"].message
-                            }
-                            console.log("======>> resolving final result: ", finalResult);
-                            resolve(finalResult);
-                        } else if (result && result.testsuite && result.testsuite["$"] && result.testsuite["$"].name) {
-                            const finalResult = {
-                                title: trace_name,
-                            }
-                            if (result.testsuite["$"].error == "1") {
-                                finalResult.error = "Has error but cannot retrieve more details";
-                            }
-                            resolve(finalResult);
-                        } else {
-                            console.log("=====result not match")
-                            resolve({})
-                        }
-                    });
+                    lib
+                        .getSingleBrowserSesssionByBatchId(batchId)
+                        .then(function (resp) {
+                            resolve(resp);
+                        }).catch(function (err) {
+                            reject("cannot get single browser session by batch id: ", err);
+                        });
                 }
             })
             .catch(function (error) {
@@ -232,12 +207,20 @@ const getRerunReport = projectName => {
                         titleReport.push(`Reran ${reportResults.length} trace${reportResults.length > 1 ? "s":""}`);
 
                         for (let [index, item] of reportResults.entries()) {
-                            const title = item.title.replace("chrome:", "");
-                            const hasError = item.hasOwnProperty("error");
-                            titleReport.push(`${index+1}) ${title} - ${hasError? "failed":"passed"}`);
-                            if (hasError) {
+                            if (!item || !item.title) {
+                                continue;
+                            }
+                            const title = item.title;
+
+                            titleReport.push(`${index+1}) ${title} - ${item.hasError? "[Failed]":"[Passed]"}`);
+
+                            if (item.hasError) {
                                 errorReport.push(`== ${title} ==`);
-                                errorReport.push(item.error);
+                                errorReport.push(`Error: ${item.error}`);
+                            }
+
+                            if (item.errorScreenshot) {
+                                errorReport.push(`Screenshot: ${item.errorScreenshot}`);
                             }
                         }
 

@@ -226,6 +226,61 @@ const deleteAllRerunRecordByProject = (projectName) => {
     })
 }
 
+const getSingleBrowserSesssionByBatchId = (batchId) => {
+    return new Promise(function (resolve, reject) {
+        const url = api.inits();
+        axios
+            .get(url, {
+                headers: {
+                    "Sec-Fetch-Mode": "cors",
+                    "Sec-Fetch-Site": "same-origin",
+                    "Accept-Encoding": "gzip, deflate, br",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "User-Agent": config.USER_AGENT,
+                    Accept: "application/json, text/javascript, */*; q=0.01",
+                    Referer: "https://team.usetrace.com/",
+                    "X-Requested-With": "XMLHttpRequest",
+                    Connection: "keep-alive",
+                    Cookie: config.COOKIES
+                }
+            })
+            .then(function (response) {
+                if (response && response.data && response.data.browserSessions) {
+                    const browserSessions = response.data.browserSessions;
+
+                    let item = browserSessions.filter(item => item.batchId === batchId);
+                    if (!item || item.length === 0) {
+                        resolve("Empty item");
+                    }
+                    console.log("== item: ", item);
+                    item = item[0];
+                    const finalResult = {
+                        title: item.traceName,
+                    }
+
+                    if (item.hasError) {
+                        finalResult.hasError = true;
+                    }
+
+                    if (item.error && item.error.data && item.error.data.message) {
+                        finalResult.error = item.error.data.message;
+                    }
+
+                    if (item.errorScreenshot && item.errorScreenshot.full && item.errorScreenshot.full.url) {
+                        finalResult.errorScreenshot = item.errorScreenshot.full.url;
+                    }
+                    resolve(finalResult);
+                } else {
+                    resolve("Cannot find failure details");
+                }
+            })
+            .catch(function (error) {
+                console.error("Error in getProjectNames: ", error);
+                reject(error);
+            });
+    });
+}
+
 const getFailedBrowserSessions = (
     batchId,
     projectId,
@@ -440,6 +495,7 @@ exports.runProjectById = runProjectById;
 exports.checkResultStatus = checkResultStatus;
 exports.getResultByProjectId = getResultByProjectId;
 exports.getFailedBrowserSessions = getFailedBrowserSessions;
+exports.getSingleBrowserSesssionByBatchId = getSingleBrowserSesssionByBatchId;
 exports.checkRerunHasProjectName = checkRerunHasProjectName;
 exports.rerunFailedTraces = rerunFailedTraces;
 exports.deleteAllRerunRecordByProject = deleteAllRerunRecordByProject;
