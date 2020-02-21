@@ -1,6 +1,7 @@
 const SlackBot = require("slackbots");
 const config = require("./config");
 const lib = require("./usetrace_lib");
+const dd_lib = require("./datadog_lib");
 const cron = require("node-cron");
 const jobs = require("./cron-job");
 const mysql = require("mysql");
@@ -29,6 +30,71 @@ let bot = new SlackBot({
   token: config.TOKEN,
   name: config.BOT_NAME
 });
+
+let bot2 = new SlackBot({
+  token: config.TOKEN2,
+  name: config.BOT_NAME2
+})
+
+bot2.on("start", () => {
+  console.log("ddbot started too");
+})
+
+bot2.on("error", err => console.log("bot 2 Error: ", err));
+bot2.on("message", data => {
+  if (data.type === "goodbye" && data.source === "gateway_server") {
+    console.log("==gateway closing, trying to reconnect");
+    bot2 = new SlackBot({
+      token: config.TOKEN2,
+      name: config.BOT_NAME2
+    });
+    bot2.connect();
+  }
+
+  if (data.type !== "message") {
+    return;
+  }
+
+  if (
+    data.subtype &&
+    (data.subtype === "message_replied" || data.subtype === "bot_message")
+  ) {
+    return;
+  }
+
+  if (data.username && (data.username === "utbot" || data.username === "ddbot")) {
+    return;
+  }
+
+  if (!data.text) {
+    return;
+  }
+
+  if (!data.text.startsWith(config.BOT_CODE2)) {
+    return;
+  }
+
+  // report usage
+  reportUsage(data);
+
+  let cleaned = data.text.split(" ");
+  if (cleaned.length < 2) {
+    return;
+  }
+
+  cleaned = cleaned.slice(1);
+
+  let action = cleaned[0];
+  let reply_ts = data.ts;
+
+  if (data.thread_ts) {
+    reply_ts = data.thread_ts;
+  }
+  if (action.toLowerCase() === "run") {
+    // run all test
+    dd_lib.runAllTest(bot2, data.channel, reply_ts);
+  }
+})
 
 // cron.schedule("0 */13 * * * *", function () {
 // jobs.pingToAlive(bot);
@@ -88,7 +154,7 @@ bot.on("message", data => {
     return;
   }
 
-  if (data.username && data.username === "utbot") {
+  if (data.username && (data.username === "utbot" || data.username === "ddbot")) {
     return;
   }
 
@@ -135,10 +201,8 @@ bot.on("message", data => {
         } else {
           const nameForProject = cleaned.slice(1, tagIndex);
           const tagSection = data.text.split(tagDivider);
-          console.log("=== tagSection: ", tagSection);
           let tagsEntered = tagSection[1].split(",");
           tagsEntered = tagsEntered.map(item => item.trim());
-          console.log(" ====> tagsEntered: ", tagsEntered);
           runProject(
             nameForProject.join(" ").trim().toLowerCase(),
             data.channel,
@@ -205,7 +269,8 @@ function helpMenu(channel, reply_ts) {
   );
   menu.push("Full user guide: https://docs.google.com/document/d/1nep8eiFjC8V_ULez7qnKIREK4OeVEQbJR4hlD7CFVt4/edit?usp=sharing")
   const params = {
-    thread_ts: reply_ts
+    thread_ts: reply_ts,
+    icon_emoji: ":usetrace:"
   };
   bot.postMessage(channel, menu.join("\n\n"), params);
   return;
@@ -213,7 +278,8 @@ function helpMenu(channel, reply_ts) {
 
 const runProject = async (name, channel, reply_ts, tags = []) => {
   const params = {
-    thread_ts: reply_ts
+    thread_ts: reply_ts,
+    icon_emoji: ":usetrace:"
   };
   if (!name) {
     bot.postMessage(
@@ -265,7 +331,8 @@ const runProject = async (name, channel, reply_ts, tags = []) => {
 
 const rerunFailure = async (name, channel, reply_ts) => {
   const params = {
-    thread_ts: reply_ts
+    thread_ts: reply_ts,
+    icon_emoji: ":usetrace:"
   };
   if (!name) {
     bot.postMessage(
@@ -308,7 +375,8 @@ const rerunFailure = async (name, channel, reply_ts) => {
 
 const flushProject = async (name, channel, reply_ts) => {
   const params = {
-    thread_ts: reply_ts
+    thread_ts: reply_ts,
+    icon_emoji: ":usetrace:"
   };
   if (!name) {
     bot.postMessage(
@@ -338,7 +406,8 @@ const flushProject = async (name, channel, reply_ts) => {
 
 function invalidAction(channel, reply_ts) {
   const params = {
-    thread_ts: reply_ts
+    thread_ts: reply_ts,
+    icon_emoji: ":usetrace:"
   };
   bot.postMessage(channel, "invalid action", params);
 }
@@ -347,7 +416,8 @@ const getAllProjects = async (channel, reply_ts) => {
   try {
     const msg = await lib.getProjectNames();
     const params = {
-      thread_ts: reply_ts
+      thread_ts: reply_ts,
+      icon_emoji: ":usetrace:"
     };
     bot.postMessage(channel, msg, params);
   } catch (e) {
@@ -357,7 +427,8 @@ const getAllProjects = async (channel, reply_ts) => {
 
 const getTagsByProjectName = async (projectName, channel, reply_ts) => {
   const params = {
-    thread_ts: reply_ts
+    thread_ts: reply_ts,
+    icon_emoji: ":usetrace:"
   };
   try {
     const tagMap = await lib.getTagsMap();
