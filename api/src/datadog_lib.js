@@ -83,7 +83,7 @@ const runAllTest = async (bot2, channel, reply_ts) => {
           } catch (e) {
             console.log("Error: ", e);
           }
-        }, 10000);
+        }, 300000);
       }
     })
     .catch(function(error) {
