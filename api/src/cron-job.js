@@ -45,7 +45,8 @@ const checkTestStatus = (bot, db) => {
                                                     console.log("==== mark done statement result: ", inner_result);
                                                     if (!err) {
                                                         const params = {
-                                                            thread_ts: item.reply_thread
+                                                            thread_ts: item.reply_thread,
+                                                            icon_emoji: ":usetrace:"
                                                         };
                                                         bot.postMessage(
                                                             item.channel,
@@ -65,7 +66,8 @@ const checkTestStatus = (bot, db) => {
                                         db.query(mark_done_statement, function (err, result) {
                                             if (!err) {
                                                 const params = {
-                                                    thread_ts: item.reply_thread
+                                                    thread_ts: item.reply_thread,
+                                                    icon_emoji: ":usetrace:"
                                                 };
                                                 bot.postMessage(
                                                     item.channel,
@@ -274,7 +276,8 @@ const checkRerunStatus = async (bot, db) => {
                     if (finishedCnt === item.cnt) {
                         const finalReport = await getRerunReport(item.project_name);
                         const params = {
-                            thread_ts: item.reply_thread
+                            thread_ts: item.reply_thread,
+                            icon_emoji: ":usetrace:"
                         };
                         await resetFinishForSentReport(item.project_name);
                         bot.postMessage(item.channel, finalReport, params);

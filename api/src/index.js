@@ -55,10 +55,7 @@ bot2.on("message", data => {
     return;
   }
 
-  if (
-    data.subtype &&
-    (data.subtype === "message_replied" || data.subtype === "bot_message")
-  ) {
+  if (data.subtype && data.subtype === "message_replied") {
     return;
   }
 
@@ -95,6 +92,7 @@ bot2.on("message", data => {
     dd_lib.runAllTest(bot2, data.channel, reply_ts);
   }
 })
+
 
 // cron.schedule("0 */13 * * * *", function () {
 // jobs.pingToAlive(bot);
@@ -148,8 +146,7 @@ bot.on("message", data => {
   }
 
   if (
-    data.subtype &&
-    (data.subtype === "message_replied" || data.subtype === "bot_message")
+    data.subtype && data.subtype === "message_replied"
   ) {
     return;
   }
@@ -294,8 +291,21 @@ const runProject = async (name, channel, reply_ts, tags = []) => {
     const map = await lib.getProjectMap();
     if (map.has(name)) {
       const project_id = map.get(name);
+      let finalTags = [];
+      if (tags.length > 0) {
+        finalTags = tags
+      } else {
+        const tagMap = await lib.getTagsMap();
+        const projectMap = await lib.getProjectMap();
+        if (projectMap.has(name)) {
+          if (tagMap.has(project_id)) {
+            const defaultTags = Array.from(tagMap.get(project_id));
+            finalTags = defaultTags.filter(item => item !== "routine");
+          }
+        }
+      }
 
-      const resp = await lib.runProjectById(project_id, tags);
+      const resp = await lib.runProjectById(project_id, finalTags);
       await query.insertJob(resp, project_id, name, channel, reply_ts);
       if (tags && tags.length > 0) {
         bot.postMessage(
