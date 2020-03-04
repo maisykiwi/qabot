@@ -488,16 +488,17 @@ const reportUsage = data => {
   if (!data) {
     return;
   }
+
   let channelName = "";
   let userName = "";
   if (channelMap) {
     channelObj = channelMap.filter(item => item.id === data.channel);
-    channelName = channelObj[0].name;
+    channelName = channelObj && channelObj[0] ? channelObj[0].name : "unknown";
   }
 
   if (userMap) {
     userObj = userMap.filter(item => item.id === data.user);
-    userName = userObj[0].name;
+    userName = userObj && userObj[0] ? userObj[0].name : "unknown";
   }
 
   var params = {
