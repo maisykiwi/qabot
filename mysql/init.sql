@@ -30,5 +30,11 @@ CREATE TABLE `usetrace_rerun`(
 ) 
 ENGINE = INNODB;
 
+CREATE TABLE `datadog_rerun`(
+  `id` INT PRIMARY KEY NOT NULL AUTO_INCREMENT,
+  `public_id_arr` VARCHAR(8000) NOT NULL
+) 
+ENGINE = INNODB;
+
 
 

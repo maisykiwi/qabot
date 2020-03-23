@@ -1,6 +1,7 @@
 const axios = require("axios");
 const config = require("./config");
 const moment = require("moment-timezone");
+const query = require("./database");
 
 const instance = axios.create({
   baseURL: "https://app.datadoghq.com/api/v1",
@@ -30,7 +31,7 @@ const runAllTest = async (bot2, channel, reply_ts) => {
 
   instance
     .get("/synthetics/tests")
-    .then(async function(resp) {
+    .then(async function (resp) {
       if (resp && resp.data && resp.data.tests && resp.data.tests.length > 0) {
         const tests = resp.data.tests;
         const public_id_arr = [];
@@ -71,12 +72,17 @@ const runAllTest = async (bot2, channel, reply_ts) => {
             }
           }
         } catch (e) {
-          console.error("Error: ", e);
+          if (e && e.response && e.response.status === 403) {
+            bot2.postMessage(channel, "Token expired, please update it", params);
+          } else {
+            bot2.postMessage(channel, JSON.stringify(e), params);
+          }
+          return;
         }
 
         bot2.postMessage(channel, resp_msg.join("\n"), params);
 
-        setTimeout(async function() {
+        setTimeout(async function () {
           try {
             const resp = await getAllTestResult(public_id_arr, testMap);
             bot2.postMessage(channel, resp, params);
@@ -86,10 +92,77 @@ const runAllTest = async (bot2, channel, reply_ts) => {
         }, 300000);
       }
     })
-    .catch(function(error) {
+    .catch(function (error) {
       console.log("Error calling get all test result: ", error);
     });
 };
+
+const rerunFailure = async (bot2, channel, reply_ts) => {
+  var params = {
+    thread_ts: reply_ts,
+    icon_emoji: ":datadog:"
+  };
+
+  let rerunIdArr;
+  // get failure id
+  try {
+    const resp = await query.getDatadogFailures();
+    const result = resp[0];
+    rerunIdArr = result && result.public_id_arr && result.public_id_arr.length > 0 ? result.public_id_arr.split(",") : [];
+  } catch (e) {
+    console.log("Error: ", e);
+  }
+
+  if (!rerunIdArr || rerunIdArr === "" || rerunIdArr.length === 0) {
+    bot2.postMessage(channel, "No failure record, please just use `@ddbot run`", params);
+    return;
+  }
+
+  instance
+    .get("/synthetics/tests")
+    .then(async function (resp) {
+      if (resp && resp.data && resp.data.tests && resp.data.tests.length > 0) {
+        const tests = resp.data.tests;
+        const testMap = {};
+
+        tests.map(item => {
+          testMap[item.public_id] = {
+            tags: item.tags,
+            name: item.name,
+            status: item.status
+          };
+        });
+
+        const resp_msg = ["Rerunning following tests: "];
+        try {
+          const resp = await run_all_tests_via_cookies(rerunIdArr);
+          if (resp && resp.triggered_check_ids) {
+            for (let [index, item] of resp.triggered_check_ids.entries()) {
+              if (testMap.hasOwnProperty(item)) {
+                resp_msg.push(`${index + 1}) ${testMap[item].name}`);
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Error: ", e);
+        }
+
+        bot2.postMessage(channel, resp_msg.join("\n"), params);
+
+        setTimeout(async function () {
+          try {
+            const resp = await getAllTestResult(rerunIdArr, testMap);
+            bot2.postMessage(channel, resp, params);
+          } catch (e) {
+            console.log("Error: ", e);
+          }
+        }, 300000);
+      }
+    })
+    .catch(function (error) {
+      console.log("Error calling get all test result: ", error);
+    });
+}
 
 const runSingleTestById = publicId => {
   return new Promise((resolve, reject) => {
@@ -98,10 +171,10 @@ const runSingleTestById = publicId => {
     };
     instance
       .put(`/synthetics/tests/${publicId}/status`, body)
-      .then(function(resp) {
+      .then(function (resp) {
         resolve(resp.data);
       })
-      .catch(function(error) {
+      .catch(function (error) {
         console.log("Error calling single test api: ", error);
         reject(error);
       });
@@ -117,10 +190,10 @@ const run_all_tests_via_cookies = arr => {
 
     instance_private
       .post("/synthetics/tests/trigger", body)
-      .then(function(resp) {
+      .then(function (resp) {
         resolve(resp.data);
       })
-      .catch(function(error) {
+      .catch(function (error) {
         console.log("Error calling trigger all test api: ", error);
         reject(error);
       });
@@ -131,10 +204,10 @@ const getSingleTestResultById = publicId => {
   return new Promise((resolve, reject) => {
     instance
       .get(`/synthetics/tests/${publicId}/results`)
-      .then(function(resp) {
+      .then(function (resp) {
         resolve(resp.data.results);
       })
-      .catch(function(error) {
+      .catch(function (error) {
         console.log("Error get single test result: ", error);
         reject(error);
       });
@@ -143,6 +216,7 @@ const getSingleTestResultById = publicId => {
 
 const getAllTestResult = async (arr, map) => {
   return new Promise(async (resolve, reject) => {
+    const errArr = [];
     const report = ["Test Results:"];
     for (let [i, v] of arr.entries()) {
       try {
@@ -173,6 +247,11 @@ const getAllTestResult = async (arr, map) => {
           } else {
             report.push(`>> ${second_timestamp} (EST) - [Passed]`);
           }
+
+          if ((first.result && first.result.errorMessage) || (second.result && second.result.errorMessage)) {
+            // save error id for rerun later
+            errArr.push(v);
+          }
         }
       } catch (e) {
         console.log("Error: ", e);
@@ -180,7 +259,16 @@ const getAllTestResult = async (arr, map) => {
         report.push("Error getting result, please check manually");
       }
     }
+    if (errArr.length > 0) {
+      try {
+        await query.insertDatadogFailures(errArr.join(","));
+      } catch (e) {
+        console.log("Error insert rerun id for datadog: ", errArr);
+      }
+    }
     resolve(report.join("\n"));
   });
 };
+
 exports.runAllTest = runAllTest;
+exports.rerunFailure = rerunFailure;

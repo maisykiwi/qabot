@@ -26,5 +26,37 @@ const getRerunProjectName = async (name) => {
     })
 }
 
+// ====== insert datadog failures ======
+const insertDatadogFailures = async (public_id_arr) => {
+    return new Promise(function (resolve, error) {
+        const statement = `INSERT INTO datadog_rerun(public_id_arr) ` +
+            `VALUES ("${public_id_arr}");`;
+
+        db.query(statement, function (e, result) {
+            if (e) {
+                error(e);
+            }
+            resolve(result);
+        })
+    });
+}
+
+
+// ====== get datadog failures ==========
+const getDatadogFailures = async () => {
+    return new Promise(function (resolve, error) {
+        const statement = `select * from datadog_rerun ORDER BY id DESC LIMIT 1;`;
+
+        db.query(statement, function (e, result) {
+            if (e) {
+                error(e);
+            }
+            resolve(result);
+        })
+    })
+}
+
 exports.insertJob = insertJob;
 exports.getRerunProjectName = getRerunProjectName;
+exports.insertDatadogFailures = insertDatadogFailures;
+exports.getDatadogFailures = getDatadogFailures;

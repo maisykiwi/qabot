@@ -90,6 +90,9 @@ bot2.on("message", data => {
   if (action.toLowerCase() === "run") {
     // run all test
     dd_lib.runAllTest(bot2, data.channel, reply_ts);
+  } else if (action.toLowerCase() === "rerun") {
+    // rerun failure tests
+    dd_lib.rerunFailure(bot2, data.channel, reply_ts);
   }
 })
 
