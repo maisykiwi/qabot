@@ -2,6 +2,7 @@ const SlackBot = require("slackbots");
 const config = require("./config");
 const lib = require("./usetrace_lib");
 const dd_lib = require("./datadog_lib");
+const pt_lib = require("./pivotal_tracker_lib");
 const cron = require("node-cron");
 const jobs = require("./cron-job");
 const mysql = require("mysql");
@@ -26,18 +27,103 @@ db.connect(err => {
 });
 global.db = db;
 
+// utbot
 let bot = new SlackBot({
   token: config.TOKEN,
   name: config.BOT_NAME
 });
 
+// ddbot
 let bot2 = new SlackBot({
   token: config.TOKEN2,
   name: config.BOT_NAME2
+});
+
+let ptbot = new SlackBot({
+  token: config.PTBOT_TOKEN,
+  name: config.PTBOT_NAME
+});
+
+ptbot.on("start", () => {
+  console.log("ptbot started");
 })
 
+ptbot.on("error", err => console.log("ptbot Error: ", err));
+
+ptbot.on("message", data => {
+  if (data.type === "goodbye" && data.source === "gateway_server") {
+    console.log("==gateway closing, trying to reconnect");
+    ptbot = new SlackBot({
+      token: config.PTBOT_TOKEN,
+      name: config.PTBOT_NAME
+    });
+    ptbot.connect();
+  }
+
+  if (data.type !== "message") {
+    return;
+  }
+
+  if (data.subtype && data.subtype === "message_replied") {
+    return;
+  }
+
+  if (data.username && (data.username === "utbot" || data.username === "ddbot" || data.username === "ptbot")) {
+    return;
+  }
+
+  if (!data.text) {
+    return;
+  }
+
+  if (!data.text.startsWith(config.PTBOT_CODE)) {
+    return;
+  }
+  console.log("=== data text: ", data.text);
+
+  // report usage
+  reportUsage(data);
+
+  let cleaned = data.text.split(" ");
+  if (cleaned.length < 2) {
+    return;
+  }
+
+  cleaned = cleaned.slice(1);
+
+  let action = cleaned[0];
+  let reply_ts = data.ts;
+
+  if (data.thread_ts) {
+    reply_ts = data.thread_ts;
+  }
+  if (action.toLowerCase() === "report") {
+    // compile report
+    pt_lib.getAllDeliveredStories(ptbot, data.channel, reply_ts)
+  } else if (data.text.includes("has joined the group")) {
+    console.log("joined another channel");
+  } else {
+    // invalid command
+    const params = {
+      // thread_ts: reply_ts,
+      icon_emoji: ":pivotal:"
+    };
+    ptbot.postMessage(
+      data.channel,
+      `Invalid command`,
+      params
+    );
+  }
+})
+
+cron.schedule("00 00 03 * * 0-5", function () {
+  console.log("== run send pt report cron job");
+  jobs.compileAndSendPivotalTrackerReport(ptbot);
+});
+
+
 bot2.on("start", () => {
-  console.log("ddbot started too");
+  console.log("ddbot started");
 })
 
 bot2.on("error", err => console.log("bot 2 Error: ", err));
@@ -59,7 +145,7 @@ bot2.on("message", data => {
     return;
   }
 
-  if (data.username && (data.username === "utbot" || data.username === "ddbot")) {
+  if (data.username && (data.username === "utbot" || data.username === "ddbot" || data.username === "ptbot")) {
     return;
   }
 
@@ -154,7 +240,7 @@ bot.on("message", data => {
     return;
   }
 
-  if (data.username && (data.username === "utbot" || data.username === "ddbot")) {
+  if (data.username && (data.username === "utbot" || data.username === "ddbot" || data.username === "ptbot")) {
     return;
   }
 
@@ -366,7 +452,7 @@ const rerunFailure = async (name, channel, reply_ts) => {
       bot.postMessage(
         channel,
         `Reruning ${resp.length} failure trace${
-          resp.length > 1 ? "s" : ""
+        resp.length > 1 ? "s" : ""
         }: \n ${resp.join("\n")}`,
         params
       );

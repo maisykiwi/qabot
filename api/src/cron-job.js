@@ -4,6 +4,7 @@ const xmlParser = new xml2js.Parser();
 const api = require("./urls");
 const axios = require("axios");
 const config = require("./config");
+const pt_lib = require("./pivotal_tracker_lib");
 
 const checkTestStatus = (bot, db) => {
     const statement = `select * from usetrace_jobs uj where uj.finished = '0'`;
@@ -206,7 +207,7 @@ const getRerunReport = projectName => {
                         console.log("=== reportResults: ", reportResults);
                         const titleReport = [];
                         const errorReport = [];
-                        titleReport.push(`Reran ${reportResults.length} trace${reportResults.length > 1 ? "s":""}`);
+                        titleReport.push(`Reran ${reportResults.length} trace${reportResults.length > 1 ? "s" : ""}`);
 
                         for (let [index, item] of reportResults.entries()) {
                             if (!item || !item.title) {
@@ -214,7 +215,7 @@ const getRerunReport = projectName => {
                             }
                             const title = item.title;
 
-                            titleReport.push(`${index+1}) ${title} - ${item.hasError? "[Failed]":"[Passed]"}`);
+                            titleReport.push(`${index + 1}) ${title} - ${item.hasError ? "[Failed]" : "[Passed]"}`);
 
                             if (item.hasError) {
                                 errorReport.push(`== ${title} ==`);
@@ -296,6 +297,12 @@ const pingToAlive = async (bot) => {
     };
     bot.postMessage(config.PING_CHANNEL, "I am alive!", params);
 }
+
+const compileAndSendPivotalTrackerReport = async (ptbot) => {
+    pt_lib.getAllDeliveredStories(ptbot, config.PTBOT_REPORT_CHANNEL, "");
+}
+
 exports.checkTestStatus = checkTestStatus;
 exports.checkRerunStatus = checkRerunStatus;
 exports.pingToAlive = pingToAlive;
+exports.compileAndSendPivotalTrackerReport = compileAndSendPivotalTrackerReport;
