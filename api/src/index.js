@@ -116,7 +116,8 @@ ptbot.on("message", data => {
   }
 })
 
-cron.schedule("00 00 03 * * 0-5", function () {
+// Docker image is in UTC timezone: 3AM UTC === 8PM EST
+cron.schedule("00 00 03 * * *", function () {
   console.log("== run send pt report cron job");
   jobs.compileAndSendPivotalTrackerReport(ptbot);
 });
