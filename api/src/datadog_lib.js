@@ -53,12 +53,14 @@ const runAllTest = async (bot2, channel, reply_ts) => {
         const testMap = {};
 
         tests.map(item => {
-          public_id_arr.push(item.public_id);
-          testMap[item.public_id] = {
-            tags: item.tags,
-            name: item.name,
-            status: item.status
-          };
+          if (item.status === "live") {
+            public_id_arr.push(item.public_id);
+            testMap[item.public_id] = {
+              tags: item.tags,
+              name: item.name,
+              status: item.status
+            };
+          }
         });
 
         const resp_msg = ["Running following tests: "];
@@ -236,19 +238,19 @@ const getAllTestResult = async (arr, map) => {
             report.push(`>> ${first_timestamp} (EST) - [Passed]`);
           }
 
-          const second = resp[1];
-          const second_timestamp = moment(second.check_time)
-            .tz("America/New_York")
-            .format("MM-DD-YYYY HH:mm:ss");
+          // const second = resp[1];
+          // const second_timestamp = moment(second.check_time)
+          //   .tz("America/New_York")
+          //   .format("MM-DD-YYYY HH:mm:ss");
 
-          if (second.result && second.result.errorMessage) {
-            report.push(`>> ${second_timestamp} (EST) - [Failed]`);
-            report.push(`   Error message: ${second.result.errorMessage}`);
-          } else {
-            report.push(`>> ${second_timestamp} (EST) - [Passed]`);
-          }
+          // if (second.result && second.result.errorMessage) {
+          //   report.push(`>> ${second_timestamp} (EST) - [Failed]`);
+          //   report.push(`   Error message: ${second.result.errorMessage}`);
+          // } else {
+          //   report.push(`>> ${second_timestamp} (EST) - [Passed]`);
+          // }
 
-          if ((first.result && first.result.errorMessage) || (second.result && second.result.errorMessage)) {
+          if (first.result && first.result.errorMessage) {
             // save error id for rerun later
             errArr.push(v);
           }
