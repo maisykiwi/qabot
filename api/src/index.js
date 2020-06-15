@@ -100,6 +100,8 @@ ptbot.on("message", data => {
   if (action.toLowerCase() === "report") {
     // compile report
     pt_lib.getAllDeliveredStories(ptbot, data.channel, reply_ts)
+  } else if (action.toLowerCase() === "cycle" || action.toLowerCase() === "cycles") {
+    pt_lib.getAllCycles(ptbot, data.channel, reply_ts);
   } else if (data.text.includes("has joined the group")) {
     console.log("joined another channel");
   } else {

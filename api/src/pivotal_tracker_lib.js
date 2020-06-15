@@ -44,6 +44,37 @@ const getAllDeliveredStories = async (bot, channel, reply_ts) => {
     });
 }
 
+const getAllCycles = async (bot, channel, reply_ts) => {
+    const projects = config.PIVOTAL_TRACKER_PROJECTS;
+
+    if (!projects) {
+        return "No projects in configuration";
+    }
+
+    const promiseArr = [];
+
+    projects.map(item => promiseArr.push(getCycleByProjectId(item.name, item.projectId)));
+
+    Promise.all(promiseArr).then(function (cycles) {
+        cycles.forEach(cycle => {
+            const params = {
+                // thread_ts: reply_ts,
+                icon_emoji: ":pivotal:",
+                "blocks": cycle,
+            };
+
+            bot.postMessage(
+                channel,
+                "reports",
+                params,
+
+            );
+        });
+    }).catch(function (e) {
+        console.log("Error solving all promise: ", e);
+    });
+}
+
 const getStoriesByProjectId = (name, projectId) => {
     return new Promise(async (resolve, reject) => {
         try {
@@ -67,6 +98,124 @@ const getStoriesByProjectId = (name, projectId) => {
         }
     })
 };
+
+const getCycleByProjectId = (name, projectId) => {
+    const url = `/${projectId}/iterations?date_format=millis&fields=number%2Cstart%2Cfinish%2Cstories%28id%2Cname%2Ccurrent_state%2Cstory_type%2Cestimate%2Cowners%2Clabels%28%3Adefault%2Chas_epic%29%2Ccycle_time_details%29&limit=12&offset=-11&scope=done_current`;
+    const result = [];
+    result.push(
+        {
+            "type": "divider"
+        },
+    );
+    result.push({
+        "type": "section",
+        "text": {
+            "type": "plain_text",
+            "text": `:wand: Project: ${name}`,
+            "emoji": true
+        }
+    });
+    return new Promise(async (resolve, reject) => {
+        try {
+            instance.get(url)
+                .then(async function (resp) {
+                    if (resp && resp.data && resp.data.length > 0) {
+                        const data = resp.data;
+                        data.slice(-2).map(item => {
+
+                            result.push({
+                                "type": "section",
+                                "text": {
+                                    "type": "plain_text",
+                                    "text": `:clock9: Iteration: ${moment(item.start).tz("America/New_York").format("MM/DD/YY")} - ${moment(item.finish).tz("America/New_York").format("MM/DD/YY")}`,
+                                    "emoji": true
+                                }
+                            })
+
+                            if (item.stories && item.stories.length > 0) {
+                                item.stories.map(story => {
+                                    if (story.cycle_time_details && story.cycle_time_details.total_cycle_time && (story.cycle_time_details.total_cycle_time / 3600000 > 240)) {
+                                        let hours = story.cycle_time_details.total_cycle_time / 3600000;
+
+                                        result.push({
+                                            "type": "section",
+                                            "text": {
+                                                "type": "mrkdwn",
+                                                "text": `:star: *Name*: ${story.name} [*Owners*: ${story.owners.map(item => item.name).join(", ")}] https://www.pivotaltracker.com/n/projects/${projectId}/stories/${story.id}`,
+                                            }
+                                        });
+
+                                        const fields = [];
+
+                                        fields.push({
+                                            "type": "mrkdwn",
+                                            "text": `*Cycle Time:* ${hours.toFixed(2)} hrs`,
+                                        });
+
+                                        if (story.cycle_time_details.rejected_count && story.cycle_time_details.rejected_count > 0) {
+                                            fields.push({
+                                                "type": "mrkdwn",
+                                                "text": `*Rejections:* ${story.cycle_time_details.rejected_count}`,
+                                            });
+                                        }
+
+                                        if (story.cycle_time_details.started_time && story.cycle_time_details.started_time > 0) {
+                                            const started = story.cycle_time_details.started_time / 3600000;
+                                            if (started.toFixed(2)) {
+                                                fields.push({
+                                                    "type": "mrkdwn",
+                                                    "text": `*Started:* ${started.toFixed(2)} hrs`,
+                                                })
+                                            }
+                                        }
+
+                                        if (story.cycle_time_details.finished_time && story.cycle_time_details.finished_time > 0) {
+                                            const finished = story.cycle_time_details.finished_time / 3600000;
+                                            if (finished.toFixed(2) > 0) {
+                                                fields.push({
+                                                    "type": "mrkdwn",
+                                                    "text": `*Finished:* ${finished.toFixed(2)} hrs`,
+                                                })
+                                            }
+                                        }
+
+                                        if (story.cycle_time_details.delivered_time && story.cycle_time_details.delivered_time > 0) {
+                                            const delivered = story.cycle_time_details.delivered_time / 3600000;
+                                            if (delivered.toFixed(2) > 0) {
+                                                fields.push({
+                                                    "type": "mrkdwn",
+                                                    "text": `*Delivered:* ${delivered.toFixed(2)} hrs`,
+                                                });
+                                            }
+                                        }
+
+                                        if (story.cycle_time_details.rejected_time && story.cycle_time_details.rejected_time > 0) {
+                                            const rejectedTime = story.cycle_time_details.rejected_time / 3600000;
+                                            fields.push({
+                                                "type": "mrkdwn",
+                                                "text": `*Rejected:* ${rejectedTime.toFixed(2)} hrs`,
+                                            });
+                                        }
+
+                                        result.push({
+                                            "type": "section",
+                                            "fields": fields,
+                                        })
+                                    }
+                                })
+                            }
+                        })
+                        resolve(result)
+                    } else {
+                        resolve(result)
+                    }
+                })
+        } catch (e) {
+            console.log("Error in getCycleByProjectId: ", e);
+            reject(e);
+        }
+    })
+}
 
 const getStoriesByProjectIdInAcceptedState = (name, projectId) => {
     // with_state = accepted
@@ -122,3 +271,4 @@ const getStoriesByProjectIdInDeliveredState = (name, projectId) => {
 }
 
 exports.getAllDeliveredStories = getAllDeliveredStories;
+exports.getAllCycles = getAllCycles;
