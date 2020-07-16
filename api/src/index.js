@@ -7,6 +7,7 @@ const cron = require("node-cron");
 const jobs = require("./cron-job");
 const mysql = require("mysql");
 const query = require("./database");
+const mmbot = require("./mmbot_controller");
 
 const db = mysql.createConnection({
   host: process.env["DATABASE_HOST"],
@@ -39,10 +40,13 @@ let bot2 = new SlackBot({
   name: config.BOT_NAME2
 });
 
+// ptbot
 let ptbot = new SlackBot({
   token: config.PTBOT_TOKEN,
   name: config.PTBOT_NAME
 });
+
+mmbot.startMMbot(db);
 
 ptbot.on("start", () => {
   console.log("ptbot started");
@@ -79,7 +83,6 @@ ptbot.on("message", data => {
   if (!data.text.startsWith(config.PTBOT_CODE)) {
     return;
   }
-  console.log("=== data text: ", data.text);
 
   // report usage
   reportUsage(data);

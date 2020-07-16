@@ -7,7 +7,7 @@ const config = require("./config");
 const pt_lib = require("./pivotal_tracker_lib");
 
 const checkTestStatus = (bot, db) => {
-    const statement = `select * from usetrace_jobs uj where uj.finished = '0'`;
+    const statement = `select * from usetrace_jobs uj where uj.finished = '0' and uj.project_name NOT LIKE 'mastermind%'`;
 
     db.query(statement, function (e, result) {
         if (result && result.length > 0) {
@@ -123,7 +123,7 @@ const handleSingleTrace = batchId => {
 
 const checkEachUnfinishedTraceStatus = db => {
     return new Promise(function (resolve, reject) {
-        const check_each_trace = `select * from usetrace_rerun ur where ur.started = 1 and finished = 0;`;
+        const check_each_trace = `select * from usetrace_rerun ur where ur.started = 1 and finished = 0 and ur.project_name NOT LIKE 'mastermind%';`;
         const promiseArr = [];
         db.query(check_each_trace, function (e, result) {
             if (e) {
