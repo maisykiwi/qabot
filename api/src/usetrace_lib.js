@@ -27,7 +27,9 @@ const getProjectMap = () => {
                     const map = new Map();
                     for (let item of projects) {
                         if (item.name) {
-                            map.set(item.name.toLowerCase(), item.id);
+                            if (!item.name.toLowerCase().includes("mastermind")) {
+                                map.set(item.name.toLowerCase(), item.id);
+                            }
                         }
                     }
                     resolve(map);
